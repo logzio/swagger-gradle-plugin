@@ -1,16 +1,22 @@
 package com.benjaminsproule.swagger.gradleplugin
 
 import com.benjaminsproule.swagger.gradleplugin.except.GenerateException
+import io.swagger.models.ArrayModel
+import io.swagger.models.ComposedModel
 import io.swagger.models.Model
+import io.swagger.models.ModelImpl
 import io.swagger.models.Operation
 import io.swagger.models.Path
+import io.swagger.models.RefModel
 import io.swagger.models.Response
 import io.swagger.models.Swagger
 import io.swagger.models.Tag
 import io.swagger.models.parameters.Parameter
+import io.swagger.models.properties.Property
 import org.springframework.core.annotation.AnnotationUtils
 import org.springframework.web.bind.annotation.RequestMapping
 
+import java.lang.reflect.Field
 import java.lang.reflect.InvocationTargetException
 import java.lang.reflect.Method
 
@@ -60,6 +66,9 @@ class Utils {
         //reorder definitions
         if (swagger.getDefinitions() != null) {
             TreeMap<String, Model> defs = new TreeMap<String, Model>()
+            for ( Model model: swagger.getDefinitions().values()) {
+                sortModel(model);
+            }
             defs.putAll(swagger.getDefinitions())
             swagger.setDefinitions(defs)
         }
@@ -73,6 +82,32 @@ class Utils {
             })
         }
 
+    }
+
+    private static void sortModel(Model model) {
+        if (model instanceof ComposedModel) {
+            ComposedModel cm = (ComposedModel)model;
+            for(Model childModel : cm.getAllOf()) {
+                sortModel(childModel);
+            }
+        } else {
+            sortProperties(model, model.getProperties());
+        }
+    }
+
+    private static void sortProperties(Model model, Map<String, Property> properties) {
+        if (properties != null) {
+            TreeMap<String> sortedProps = new TreeMap<String>(new Comparator<String>() {
+                @Override
+                int compare(String o1, String o2) {
+                    return o1.compareTo(o2);
+                }
+            });
+            sortedProps.putAll(properties);
+            Field field = model.getClass().getDeclaredField("properties");
+            field.setAccessible(true);
+            field.set(model, sortedProps);
+        }
     }
 
     private static void sortResponses(Path path, String method) throws GenerateException {
